@@ -4,6 +4,7 @@ import importlib.util
 import json
 import shutil
 import sys
+import time
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -83,6 +84,22 @@ with open(TMP / "verify-result.jsonl", "a", encoding="utf-8") as f:
     f.write(json.dumps({"id": second, "verdict": "pass", "reason": ""}, ensure_ascii=False) + "\n")
 app.apply_results()
 check("通过变绿勾", app.state["items"][second]["status"] == "ok")
+
+# 6 外部程序改写 tasks.json -> 看板自动跟随
+t0 = json.loads((TMP / "tasks.json").read_text(encoding="utf-8"))
+t0["days"][0]["items"].append({"id": "ext-1", "text": "外部 AI 加的一条", "check": "看得见就行"})
+(TMP / "tasks.json").write_text(json.dumps(t0, ensure_ascii=False), encoding="utf-8")
+time.sleep(0.05)
+app.poll()
+check("外部改写 tasks.json 后自动跟随",
+      any(r["item"]["id"] == "ext-1" for r in app.rows.values()))
+
+# 7 文件被写坏时保留上一份好数据
+(TMP / "tasks.json").write_text('{"days": [', encoding="utf-8")
+time.sleep(0.05)
+app.poll()
+kept = any(r["item"]["id"] == "ext-1" for r in app.rows.values())
+check("坏 JSON 不覆盖当前内容", kept)
 
 root.destroy()
 shutil.rmtree(TMP, ignore_errors=True)

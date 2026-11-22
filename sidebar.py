@@ -413,10 +413,14 @@ class App:
     # ---------------- 循环 ----------------
     def poll(self):
         try:
-            if self._mtime(store.TASKS) != self.tasks_mtime:
-                self.tasks = store.load_tasks()
-                self.tasks_mtime = self._mtime(store.TASKS)
-                self.render()
+            mt = self._mtime(store.TASKS)
+            if mt != self.tasks_mtime:
+                self.tasks_mtime = mt
+                # 外部程序可能在写文件写到一半，解析失败时保留上一份好的数据
+                new = store.load(store.TASKS, None)
+                if isinstance(new, dict) and isinstance(new.get("days", new.get("today")), list):
+                    self.tasks = new
+                    self.render()
             self.apply_results()
         except Exception:
             pass

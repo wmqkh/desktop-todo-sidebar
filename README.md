@@ -103,6 +103,39 @@ python tools/gen_launcher.py
 - 想让**另一个 AI** 验收：把你的 AI 会话指向这个目录，让它读队列、写结论即可，不需要本程序配合。
 - 想让**自己写脚本**验收：写个脚本轮询 `verify-queue.jsonl`，检查 `dir` 里的文件数，回写结果。
 
+## 能交给别人、交给别的 AI 用吗？
+
+能。程序本身不认任何特定的 AI，它只认文件。但要让"别人的 AI"也能干好，**标准必须落在文件里**，而不是留在某个 AI 的记忆里——所以任务支持 `check` 字段，并且有一份专门写给 AI 的 [docs/AGENT.md](docs/AGENT.md)。
+
+### ① 别的 AI 能当验收方吗
+
+能，它只需要三样东西：目录读权限、**判据**、一个追加写的位置。
+
+- 判据优先取任务里的 `check` 字段；没有就按 `text` 要求 + `成果/` 里的证据判
+- 完整规则、schema、边界全在 [docs/AGENT.md](docs/AGENT.md)
+- 写回不用手写 JSON：`python tools/make_result.py 1123-1 fail "没有截图"`
+
+> 我现在能验你的东西，是因为我记得你的里程碑；换成别人的 AI，它读 `AGENT.md` + `check` 就能自己判。这就是加 `check` 的原因。
+
+### ② 别的 AI 能进来改内容吗
+
+能。`tasks.json` 是文档化 schema，外部程序随时可改，看板 1.2 秒内自动跟随；文件被写坏时它保留上一份好数据（`test_logic.py` 里有这两条测试）。
+
+交接三步：
+
+1. 让对方 clone 仓库，把**他的项目**告诉他的 AI
+2. 让 AI 读 `docs/AGENT.md`，按 schema 生成 `tasks.json`（原子写：先 `.tmp` 再 rename）
+3. 他勾选 → 他的 AI 读队列 → 写回执 → 勾自动变绿或被打回
+
+一句话模板，复制给任何 AI：
+
+```text
+这个目录是一个待办看板。请你当验收方：读 verify-queue.jsonl 里未验收的条目，
+按 docs/AGENT.md 的规则核对 成果/ 目录与外部证据（如 GitHub），
+然后用 python tools/make_result.py <id> pass|fail "原因" 写回结论。
+找不到明确证据就 fail，并把缺什么写清楚。
+```
+
 ## 自定义
 
 - 默认外观：`store.py` 里的 `DEFAULT_UI`
@@ -117,12 +150,17 @@ python tools/gen_launcher.py
 ├── sidebar.py          # 主程序：窗口、渲染、拖拽、勾选
 ├── store.py            # 数据读写、默认配置、配色
 ├── dialogs.py          # 设置窗口 + 内容编辑器
-├── test_logic.py       # 回归测试：下一天放行 + 验收回写
+├── test_logic.py       # 回归测试：7 项（放行条件 / 验收回写 / 外部改写 / 坏文件兜底）
 ├── tasks.example.json  # 示例内容（首次运行兜底）
+├── docs/
+│   ├── AGENT.md        # 给任何 AI 的接入说明（schema / 判据 / 写入规范）
+│   ├── screenshot.png
+│   └── settings.png
 ├── tools/
 │   ├── gen_launcher.py # 生成双击启动的 .vbs
-│   └── watch_queue.py  # 最简验收方示例：盯着队列，有新提交就提示
-└── docs/screenshot.png
+│   ├── watch_queue.py  # 最简验收方示例：盯着队列，有新提交就提示
+│   └── make_result.py  # 安全写回验收结论（--queue 可查待验收）
+└── LICENSE
 ```
 
 ## 常见问题
