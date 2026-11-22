@@ -1,5 +1,15 @@
 # 更新记录
 
+## 0.4.0 — 2026-11-23
+
+**新增**
+
+- `auto_verify.py`：规则化验收器，不需要 AI 也能判"交没交、链接真不真、commit 够不够"
+- `tools/install_task.py`：把它装成 Windows 计划任务（默认每 5 分钟一次），DSH / 任何 AI 关掉后照样跑
+- 任务支持 `auto` 规则：`min_evidence_files` / `url_required` / `url_hosts` / `min_commits`
+- 验收结论支持 `override`：人工或 AI 可以推翻已通过的自动判定
+- API 限流或网络异常时**跳过而不误判**，写入 `auto_verify.log`
+
 ## 0.3.0 — 2026-11-23
 
 **新增**

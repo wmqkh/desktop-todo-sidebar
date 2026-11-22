@@ -377,7 +377,10 @@ class App:
             except Exception:
                 continue
             st = self.state["items"].get(res.get("id"))
-            if not st or st.get("status") != "pending":
+            if not st:
+                continue
+            # 只处理待验收的项；带 override 的结论可以推翻已有状态（供人工/AI 改判）
+            if st.get("status") != "pending" and not res.get("override"):
                 continue
             if res.get("verdict") == "pass":
                 st["status"] = "ok"

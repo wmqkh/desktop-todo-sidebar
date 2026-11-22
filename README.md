@@ -143,6 +143,34 @@ python tools/gen_launcher.py
 找不到明确证据就 fail，并把缺什么写清楚。
 ```
 
+## 不需要 AI、甚至不需要打开任何 AI，也能验收
+
+如果验收方只是"检查东西到没到、链接真不真、commit 够不够"，那就不需要 AI——`auto_verify.py` 会在本机按规则判。
+
+```bash
+python auto_verify.py           # 手动跑一次
+python auto_verify.py --dry     # 只看会怎么判，不写回
+python tools/install_task.py    # 装成 Windows 计划任务，每 5 分钟自动跑
+python tools/install_task.py --remove   # 卸载
+```
+
+装好之后：**你勾完，就算所有 AI 都关着，5 分钟内也会自动出结论**（通过变绿勾，不通过自动去勾并写原因）。
+
+它只处理写了 `auto` 规则的任务，其余原样留给人工/AI：
+
+```json
+"auto": {
+  "min_evidence_files": 1,                    // 成果目录至少 1 个文件
+  "url_required": true,                       // txt 里必须出现链接
+  "url_hosts": ["github.com", "gitee.com"],   // 链接域名白名单
+  "min_commits": 1                            // GitHub 仓库至少 1 次提交
+}
+```
+
+能自动判：成果目录是否为空、链接是否可访问（HTTP 状态）、GitHub 仓库是否存在/是否公开/提交数。
+判不了：内容质量、逻辑对不对、讲得清不清楚——这些仍然需要人或 AI。
+API 被限流时它**不会瞎判**，而是跳过并在 `auto_verify.log` 里记一行"跳过"。
+
 ## 自定义
 
 - 默认外观：`store.py` 里的 `DEFAULT_UI`

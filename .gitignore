@@ -6,9 +6,11 @@ verify-queue.jsonl
 verify-result.jsonl
 成果/
 
-# 本机专用的启动器（路径里带用户名）
+# 本机专用（路径里带用户名）
 启动看板.vbs
 重建快捷方式.ps1
+tools/run_auto_verify.bat
+auto_verify.log
 
 # Python
 __pycache__/
