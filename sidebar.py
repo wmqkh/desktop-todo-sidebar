@@ -16,6 +16,8 @@ from tkinter import font as tkfont
 import dialogs
 import store
 
+BASE = store.BASE
+
 EDGE = 6          # 边缘判定像素
 HEADER_H = 38     # 标题栏可拖动高度
 MIN_W, MIN_H = 200, 140
@@ -31,6 +33,8 @@ class App:
         self.state.setdefault("appliedResults", 0)
         self.tasks = store.load_tasks()
         self.tasks_mtime = self._mtime(store.TASKS)
+        self.src_snap = self._src_snapshot()   # 启动时以当前代码为基线，避免误重启
+        self.src_changed_at = 0
         self.rows = {}
         self.drag = None
         self._colors()
@@ -521,6 +525,35 @@ class App:
         return "break"
 
     # ---------------- 循环 ----------------
+    def _src_snapshot(self):
+        """当前源码文件的 mtime 快照，用来发现代码改动。"""
+        snap = {}
+        for p in sorted(BASE.glob("*.py")):
+            try:
+                snap[p.name] = p.stat().st_mtime
+            except OSError:
+                pass
+        return snap
+
+    def _dialogs_open(self):
+        return any(isinstance(w, tk.Toplevel) for w in self.root.winfo_children())
+
+    def restart_app(self):
+        """请求外层守护进程重启自己（状态和几何都已落盘，不会丢）。"""
+        try:
+            store.save(store.STATE, self.state)
+            self._save_geometry()
+        except Exception:
+            pass
+        try:
+            with open(BASE / "restart.log", "a", encoding="utf-8") as f:
+                f.write("[%s] 源码变更 -> 请求重启 pid=%s\n"
+                        % (time.strftime("%Y-%m-%d %H:%M:%S"), os.getpid()))
+        except Exception:
+            pass
+        self.root.destroy()
+        os._exit(42)      # 42 = 交给 run_sidebar.py 重新拉起
+
     def poll(self):
         try:
             mt = self._mtime(store.TASKS)
@@ -531,6 +564,15 @@ class App:
                     self.tasks = new
                     self.render()
             self.apply_results()
+            # 源码热重载：改完 .py 不用手动重启
+            if self.ui.get("auto_reload", True):
+                snap = self._src_snapshot()
+                if snap != self.src_snap:
+                    self.src_snap = snap
+                    self.src_changed_at = time.time()
+                elif self.src_changed_at and time.time() - self.src_changed_at > 2.0:
+                    if not self._dialogs_open():
+                        self.restart_app()
         except Exception:
             pass
         self.root.after(1200, self.poll)

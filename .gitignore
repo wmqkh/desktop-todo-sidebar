@@ -11,6 +11,7 @@ verify-result.jsonl
 重建快捷方式.ps1
 tools/run_auto_verify.bat
 auto_verify.log
+restart.log
 
 # Python
 __pycache__/

@@ -8,7 +8,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-TARGET = ROOT / "sidebar.py"
+TARGET = ROOT / "run_sidebar.py"      # 走守护进程：能热重载、能崩了自愈
 
 # 优先用 pythonw.exe，避免黑窗口；找不到就退回 python.exe
 py = Path(sys.executable)

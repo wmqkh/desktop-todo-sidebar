@@ -44,7 +44,8 @@ def show_queue():
 
 
 def main():
-    args = sys.argv[1:]
+    args = [a for a in sys.argv[1:] if a != "--override"]
+    override = "--override" in sys.argv[1:]
     if not args or args[0] in ("-h", "--help"):
         print(__doc__)
         return 0
@@ -52,7 +53,7 @@ def main():
         show_queue()
         return 0
     if len(args) < 2:
-        print("缺参数。用法：make_result.py <id> pass|fail [原因]")
+        print("缺参数。用法：make_result.py <id> pass|fail [原因] [--override]")
         return 2
     iid, verdict = args[0], args[1].lower()
     reason = args[2] if len(args) > 2 else ""
@@ -60,6 +61,8 @@ def main():
         print("verdict 只能是 pass 或 fail")
         return 2
     rec = {"id": iid, "verdict": verdict, "reason": reason, "ts": time.time()}
+    if override:
+        rec["override"] = True
     with open(RESULTS, "a", encoding="utf-8") as f:
         f.write(json.dumps(rec, ensure_ascii=False) + "\n")
     print("已写入：", json.dumps(rec, ensure_ascii=False))
