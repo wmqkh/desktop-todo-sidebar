@@ -164,6 +164,17 @@ app.reset_position()
 check("重置回到右上角", app.gw == 340 and app.gy == 16,
       "w=%d y=%d, x=%d" % (app.gw, app.gy, app.gx))
 
+# 9 收起成小球 / 展开
+before_w = app.gw
+app.collapse()
+check("收起后变成小球", bool(app.ui.get("collapsed")) and app.gw == m.BALL,
+      "w=%d collapsed=%s" % (app.gw, app.ui.get("collapsed")))
+check("小球显示进度", app.ball_text() in ("0/3", "1/3", "2/3", "3/3", "✓", "–"),
+      "text=%s" % app.ball_text())
+app.expand()
+check("展开后恢复原尺寸", (not app.ui.get("collapsed")) and app.gw == before_w,
+      "w=%d" % app.gw)
+
 root.destroy()
 shutil.rmtree(TMP, ignore_errors=True)
 print("\nRESULT:", "ALL PASS" if ok else "HAS FAILURE")

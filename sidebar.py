@@ -21,6 +21,8 @@ BASE = store.BASE
 EDGE = 6          # 边缘判定像素
 HEADER_H = 38     # 标题栏可拖动高度
 MIN_W, MIN_H = 200, 140
+BALL = 56         # 收起后小球的直径
+MAGIC = "#010203" # 透明色键（小球四角抠掉用）
 
 
 class App:
@@ -41,7 +43,12 @@ class App:
         self._fonts()
         self._geometry_from_ui()
         self._window()
-        self._build()
+        self.expanded_alpha = float(self.ui.get("alpha", 0.66))
+        if self.ui.get("collapsed"):
+            self.collapsed_pos = (self.gx + self.gw - BALL, self.gy)
+            self._build_collapsed()
+        else:
+            self._build()
         self.root.after(300, self.poll)
 
     # ---------------- 基础 ----------------
@@ -90,6 +97,8 @@ class App:
         store.save(store.UI, self.ui)
 
     def reset_position(self):
+        if self.ui.get("collapsed"):
+            self.expand()
         self.ui.update(x=None, y=None, width=340, height=0)
         store.save(store.UI, self.ui)
         self._geometry_from_ui()
@@ -127,7 +136,8 @@ class App:
         self.lbl_prog = tk.Label(head, text="", font=self.f_small, bg=self.bg, fg=self.faint,
                                  cursor="fleur")
         self.lbl_prog.pack(side="left", padx=(8, 0))
-        for txt, cmd in (("✕", self.quit_all), ("✎", self.open_editor), ("⚙", self.open_settings)):
+        for txt, cmd in (("✕", self.quit_all), ("✎", self.open_editor),
+                         ("⚙", self.open_settings), ("—", self.collapse)):
             lb = tk.Label(head, text=txt, font=self.f_small, bg=self.bg, fg=self.faint, cursor="hand2")
             lb.pack(side="right", padx=(8, 0))
             lb.bind("<Button-1>", lambda e, c=cmd: self._icon(c))
@@ -186,6 +196,7 @@ class App:
         self.menu = tk.Menu(self.root, tearoff=0)
         self.menu.add_command(label="设置…", command=self.open_settings)
         self.menu.add_command(label="编辑内容…", command=self.open_editor)
+        self.menu.add_command(label="收起成小球", command=self.collapse)
         self.menu.add_separator()
         self.menu.add_command(label="回到右上角", command=self.reset_position)
         self.menu.add_command(label="退出", command=self.quit_all)
@@ -261,6 +272,9 @@ class App:
         return dict(item=item, scope=scope, outer=outer, box=box, txt=txt, note=note)
 
     def render(self):
+        if self.ui.get("collapsed"):
+            self.refresh_ball()
+            return
         for f in (self.today_box, self.week_box):
             for w in f.winfo_children():
                 w.destroy()
@@ -524,6 +538,125 @@ class App:
             self.menu.grab_release()
         return "break"
 
+    # ---------------- 收起成小球 ----------------
+    def _magic(self):
+        return MAGIC if self.bg.lower() != MAGIC.lower() else "#020304"
+
+    def collapse(self):
+        if self.ui.get("collapsed"):
+            return
+        self._save_geometry()                    # 先记住展开时的位置尺寸
+        self.expanded_alpha = float(self.ui.get("alpha", 0.66))
+        self.collapsed_pos = (self.gx + self.gw - BALL, self.gy)
+        self.ui["collapsed"] = True
+        store.save(store.UI, self.ui)
+        self._build_collapsed()
+
+    def ball_text(self):
+        items = self.cur_day().get("items", [])
+        if not items:
+            return "–"
+        n = len(items)
+        done = sum(1 for i in items
+                   if self.state["items"].get(i["id"], {}).get("status") in ("ok", "pending"))
+        if done == n:
+            ok = sum(1 for i in items if self.state["items"].get(i["id"], {}).get("status") == "ok")
+            return "✓" if ok == n else "%d/%d" % (done, n)
+        return "%d/%d" % (done, n)
+
+    def _draw_ball(self):
+        cv = getattr(self, "ball_canvas", None)
+        if cv is None or not cv.winfo_exists():
+            return
+        cv.delete("all")
+        cv.create_oval(1, 1, BALL - 1, BALL - 1, fill=self.bg, outline=self.line)
+        cv.create_text(BALL // 2, BALL // 2 - 9, text="待办", font=self.f_small, fill=self.dim)
+        txt = self.ball_text()
+        cv.create_text(BALL // 2, BALL // 2 + 9, text=txt, font=self.f_body,
+                       fill=self.ok if txt == "✓" else self.fg)
+
+    def refresh_ball(self):
+        self._draw_ball()
+
+    def _build_collapsed(self):
+        for w in self.root.winfo_children():
+            w.destroy()
+        magic = self._magic()
+        self.root.configure(bg=magic)
+        try:
+            self.root.attributes("-transparentcolor", magic)
+        except tk.TclError:
+            pass
+        self.root.attributes("-alpha", 1.0)
+        x, y = getattr(self, "collapsed_pos", (self.gx, self.gy))
+        self.gx, self.gy, self.gw, self.gh = int(x), int(y), BALL, BALL
+        self.root.geometry("%dx%d+%d+%d" % (BALL, BALL, self.gx, self.gy))
+        self.root.config(cursor="hand2")
+
+        cv = tk.Canvas(self.root, width=BALL, height=BALL, bg=magic,
+                       highlightthickness=0, bd=0, cursor="hand2")
+        cv.pack()
+        self.ball_canvas = cv
+        self._draw_ball()
+        for wdg in (cv, self.root):
+            wdg.bind("<ButtonPress-1>", self.on_ball_press)
+            wdg.bind("<B1-Motion>", self.on_ball_move)
+            wdg.bind("<ButtonRelease-1>", self.on_ball_release)
+        cv.bind("<Button-3>", self.on_ball_menu)
+
+    def expand(self):
+        if not self.ui.get("collapsed"):
+            return
+        self.ui["collapsed"] = False
+        store.save(store.UI, self.ui)
+        try:
+            self.root.attributes("-transparentcolor", "")
+        except tk.TclError:
+            pass
+        try:
+            self.root.attributes("-alpha", getattr(self, "expanded_alpha",
+                                                   float(self.ui.get("alpha", 0.66))))
+        except tk.TclError:
+            pass
+        self._geometry_from_ui()
+        self._apply_geometry()
+        self.root.config(cursor="")
+        for w in self.root.winfo_children():
+            w.destroy()
+        self._build()
+
+    def on_ball_menu(self, e):
+        m = tk.Menu(self.root, tearoff=0)
+        m.add_command(label="展开", command=self.expand)
+        m.add_separator()
+        m.add_command(label="退出", command=self.quit_all)
+        try:
+            m.tk_popup(e.x_root, e.y_root)
+        finally:
+            m.grab_release()
+        return "break"
+
+    def on_ball_press(self, e):
+        self.ball_drag = (e.x_root, e.y_root, self.gx, self.gy)
+        self.ball_moved = False
+
+    def on_ball_move(self, e):
+        d = getattr(self, "ball_drag", None)
+        if not d:
+            return
+        x0, y0, gx, gy = d
+        dx, dy = e.x_root - x0, e.y_root - y0
+        if abs(dx) + abs(dy) > 4:
+            self.ball_moved = True
+        self.gx, self.gy = int(gx + dx), int(gy + dy)
+        self.root.geometry("%dx%d+%d+%d" % (BALL, BALL, self.gx, self.gy))
+
+    def on_ball_release(self, e):
+        if not getattr(self, "ball_moved", False):
+            self.expand()
+        else:
+            self.collapsed_pos = (self.gx, self.gy)
+
     # ---------------- 循环 ----------------
     def _src_snapshot(self):
         """当前源码文件的 mtime 快照，用来发现代码改动。"""
@@ -580,7 +713,8 @@ class App:
     def quit_all(self):
         try:
             store.save(store.STATE, self.state)
-            self._save_geometry()
+            if not self.ui.get("collapsed"):
+                self._save_geometry()      # 收起时不能把小球尺寸写进展开的几何
         except Exception:
             pass
         self.root.destroy()
