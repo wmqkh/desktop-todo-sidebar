@@ -1,0 +1,26 @@
+# 运行时产生的个人数据，不进仓库
+tasks.json
+ui.json
+state.json
+verify-queue.jsonl
+verify-result.jsonl
+成果/
+
+# 本机专用的启动器（路径里带用户名）
+启动看板.vbs
+重建快捷方式.ps1
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.test_tmp/
+.venv/
+venv/
+
+# 编辑器
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
