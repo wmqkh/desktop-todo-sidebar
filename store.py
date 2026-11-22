@@ -13,19 +13,21 @@ QUEUE = BASE / "verify-queue.jsonl"
 RESULTS = BASE / "verify-result.jsonl"
 OUTDIR = BASE / "成果"
 
-VERSION = "0.2.0"
+VERSION = "0.3.0"
 
 DEFAULT_UI = {
-    "dayIndex": 0,
+    "x": None,            # None = 靠右自动
+    "y": None,            # None = 顶部 16
     "width": 340,
     "height": 0,          # 0 = 自动（屏高 - 60）
     "alpha": 0.66,
     "font_size": 10,
     "bg_color": "#000000",
     "fg_mode": "light",   # light = 深底浅字，dark = 浅底深字
+    "auto_open_dir": True,
+    "dayIndex": 0,
 }
 
-# 预设背景色
 PRESETS = [
     ("#000000", "纯黑"),
     ("#12161c", "深墨"),
@@ -37,8 +39,7 @@ PRESETS = [
     ("#f2f2f2", "浅底"),
 ]
 
-LIMITS = dict(width=(240, 900), height=(240, 2000), alpha=(0.30, 1.0),
-              font=(8, 16), size_step=1)
+LIMITS = dict(width=(200, 1200), height=(140, 2400), alpha=(0.30, 1.0), font=(8, 16))
 
 
 def load(path, default):

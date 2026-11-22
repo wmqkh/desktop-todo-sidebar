@@ -96,12 +96,21 @@ class SettingsDialog(tk.Toplevel):
                        bg=BG, fg=FG, selectcolor=CARD, activebackground=BG,
                        activeforeground=FG, highlightthickness=0).pack(side="left", padx=6)
 
+        r7 = tk.LabelFrame(box, text="行为", bg=BG, fg=DIM, bd=1, relief="groove")
+        r7.grid(row=7, column=0, columnspan=3, sticky="we", **pad)
+        self.v_auto = tk.BooleanVar(value=bool(self.ui.get("auto_open_dir", True)))
+        tk.Checkbutton(r7, text="勾选后自动打开成果文件夹", variable=self.v_auto,
+                       bg=BG, fg=FG, selectcolor=CARD, activebackground=BG,
+                       activeforeground=FG, highlightthickness=0).pack(anchor="w", padx=6, pady=4)
+
         bar = tk.Frame(self, bg=BG)
         bar.pack(fill="x", padx=12, pady=(0, 12))
         tk.Button(bar, text="保存", bg="#2f6ee0", fg="white", relief="flat", width=10,
                   command=self.ok).pack(side="right", padx=4)
         tk.Button(bar, text="取消", bg=CARD, fg=FG, relief="flat", width=8,
                   command=self.destroy).pack(side="right", padx=4)
+        tk.Button(bar, text="回到右上角", bg=CARD, fg=FG, relief="flat",
+                  command=self.reset_pos).pack(side="left", padx=4)
 
         self.pick(self.color)
 
@@ -115,6 +124,12 @@ class SettingsDialog(tk.Toplevel):
         rgb, hexv = colorchooser.askcolor(color=self.color, title="选择背景色")
         if hexv:
             self.pick(hexv)
+
+    def reset_pos(self):
+        self.ui.update(x=None, y=None, width=340, height=0)
+        for ent, val in ((self.e_w, 340), (self.e_h, 0)):
+            ent.delete(0, "end")
+            ent.insert(0, str(val))
 
     def ok(self):
         try:
@@ -132,6 +147,7 @@ class SettingsDialog(tk.Toplevel):
             font_size=store.clamp(int(self.s_font.get()), "font"),
             bg_color=self.color,
             fg_mode=self.v_mode.get(),
+            auto_open_dir=bool(self.v_auto.get()),
         )
         self.result = self.ui
         self.destroy()
