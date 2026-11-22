@@ -542,15 +542,41 @@ class App:
     def _magic(self):
         return MAGIC if self.bg.lower() != MAGIC.lower() else "#020304"
 
+    def _supports_key(self):
+        """探测当前 Tk/Windows 是否支持 transparentcolor（不支持就走方形兜底）。"""
+        try:
+            self.root.attributes("-transparentcolor", MAGIC)
+            got = self.root.attributes("-transparentcolor")
+            self.root.attributes("-transparentcolor", "")
+            return bool(got)
+        except tk.TclError:
+            return False
+
+    def _log(self, tag, exc_text):
+        try:
+            with open(BASE / "error.log", "a", encoding="utf-8") as f:
+                f.write("[%s] %s\n%s\n" % (time.strftime("%Y-%m-%d %H:%M:%S"), tag, exc_text))
+        except Exception:
+            pass
+
     def collapse(self):
-        if self.ui.get("collapsed"):
+        if self.ui.get("collapsed") or getattr(self, "_toggling", False):
             return
-        self._save_geometry()                    # 先记住展开时的位置尺寸
-        self.expanded_alpha = float(self.ui.get("alpha", 0.66))
-        self.collapsed_pos = (self.gx + self.gw - BALL, self.gy)
-        self.ui["collapsed"] = True
-        store.save(store.UI, self.ui)
-        self._build_collapsed()
+        self._toggling = True
+        try:
+            self._save_geometry()                    # 先记住展开时的位置尺寸
+            self.expanded_alpha = float(self.ui.get("alpha", 0.66))
+            self.collapsed_pos = (self.gx + self.gw - BALL, self.gy)
+            self.ui["collapsed"] = True
+            store.save(store.UI, self.ui)
+            self._build_collapsed()
+        except Exception:
+            import traceback
+            self._log("collapse 失败", traceback.format_exc())
+            self.ui["collapsed"] = False
+            store.save(store.UI, self.ui)
+        finally:
+            self._toggling = False
 
     def ball_text(self):
         items = self.cur_day().get("items", [])
@@ -566,14 +592,20 @@ class App:
 
     def _draw_ball(self):
         cv = getattr(self, "ball_canvas", None)
-        if cv is None or not cv.winfo_exists():
+        if cv is None:
             return
-        cv.delete("all")
-        cv.create_oval(1, 1, BALL - 1, BALL - 1, fill=self.bg, outline=self.line)
-        cv.create_text(BALL // 2, BALL // 2 - 9, text="待办", font=self.f_small, fill=self.dim)
-        txt = self.ball_text()
-        cv.create_text(BALL // 2, BALL // 2 + 9, text=txt, font=self.f_body,
-                       fill=self.ok if txt == "✓" else self.fg)
+        try:
+            if not cv.winfo_exists():
+                return
+            cv.delete("all")
+            cv.create_oval(1, 1, BALL - 1, BALL - 1, fill=self.bg, outline=self.line)
+            cv.create_text(BALL // 2, BALL // 2 - 9, text="待办", font=self.f_small, fill=self.dim)
+            txt = self.ball_text()
+            cv.create_text(BALL // 2, BALL // 2 + 9, text=txt, font=self.f_body,
+                           fill=self.ok if txt == "✓" else self.fg)
+        except Exception:
+            import traceback
+            self._log("_draw_ball 失败", traceback.format_exc())
 
     def refresh_ball(self):
         self._draw_ball()
@@ -583,47 +615,62 @@ class App:
             w.destroy()
         magic = self._magic()
         self.root.configure(bg=magic)
+        # 先把色键开起来再画，避免先闪一个方块
+        keyed = self._supports_key()
+        if keyed:
+            try:
+                self.root.attributes("-transparentcolor", magic)
+            except tk.TclError:
+                keyed = False
         try:
-            self.root.attributes("-transparentcolor", magic)
+            self.root.attributes("-alpha", 1.0)
         except tk.TclError:
             pass
-        self.root.attributes("-alpha", 1.0)
         x, y = getattr(self, "collapsed_pos", (self.gx, self.gy))
         self.gx, self.gy, self.gw, self.gh = int(x), int(y), BALL, BALL
         self.root.geometry("%dx%d+%d+%d" % (BALL, BALL, self.gx, self.gy))
         self.root.config(cursor="hand2")
 
-        cv = tk.Canvas(self.root, width=BALL, height=BALL, bg=magic,
+        cv = tk.Canvas(self.root, width=BALL, height=BALL, bg=magic if keyed else self.bg,
                        highlightthickness=0, bd=0, cursor="hand2")
         cv.pack()
         self.ball_canvas = cv
         self._draw_ball()
-        for wdg in (cv, self.root):
-            wdg.bind("<ButtonPress-1>", self.on_ball_press)
-            wdg.bind("<B1-Motion>", self.on_ball_move)
-            wdg.bind("<ButtonRelease-1>", self.on_ball_release)
+        # 只绑画布，避免和 root 的绑定重复触发
+        cv.bind("<ButtonPress-1>", self.on_ball_press)
+        cv.bind("<B1-Motion>", self.on_ball_move)
+        cv.bind("<ButtonRelease-1>", self.on_ball_release)
         cv.bind("<Button-3>", self.on_ball_menu)
+        cv.bind("<Double-Button-1>", lambda e: "break")   # 双击不连发
 
     def expand(self):
-        if not self.ui.get("collapsed"):
+        if not self.ui.get("collapsed") or getattr(self, "_toggling", False):
             return
-        self.ui["collapsed"] = False
-        store.save(store.UI, self.ui)
+        self._toggling = True
         try:
-            self.root.attributes("-transparentcolor", "")
-        except tk.TclError:
-            pass
-        try:
-            self.root.attributes("-alpha", getattr(self, "expanded_alpha",
-                                                   float(self.ui.get("alpha", 0.66))))
-        except tk.TclError:
-            pass
-        self._geometry_from_ui()
-        self._apply_geometry()
-        self.root.config(cursor="")
-        for w in self.root.winfo_children():
-            w.destroy()
-        self._build()
+            self.ui["collapsed"] = False
+            store.save(store.UI, self.ui)
+            try:
+                self.root.attributes("-transparentcolor", "")
+            except tk.TclError:
+                pass
+            try:
+                self.root.attributes("-alpha", getattr(self, "expanded_alpha",
+                                                       float(self.ui.get("alpha", 0.66))))
+            except tk.TclError:
+                pass
+            self._geometry_from_ui()
+            self._apply_geometry()
+            self.root.config(cursor="")
+            for w in self.root.winfo_children():
+                w.destroy()
+            self.ball_canvas = None
+            self._build()
+        except Exception:
+            import traceback
+            self._log("expand 失败", traceback.format_exc())
+        finally:
+            self._toggling = False
 
     def on_ball_menu(self, e):
         m = tk.Menu(self.root, tearoff=0)
@@ -723,6 +770,17 @@ class App:
 def main():
     root = tk.Tk()
     root.title("今日待办")
+
+    def log_exc(exc, val, tb):
+        import traceback
+        try:
+            with open(BASE / "error.log", "a", encoding="utf-8") as f:
+                f.write("[%s] 回调异常\n" % time.strftime("%Y-%m-%d %H:%M:%S"))
+                f.write("".join(traceback.format_exception(exc, val, tb)))
+        except Exception:
+            pass
+
+    root.report_callback_exception = log_exc
     App(root)
     root.mainloop()
 

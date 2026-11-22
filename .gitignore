@@ -12,6 +12,8 @@ verify-result.jsonl
 tools/run_auto_verify.bat
 auto_verify.log
 restart.log
+重启看板.bat
+error.log
 
 # Python
 __pycache__/
