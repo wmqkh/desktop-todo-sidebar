@@ -150,7 +150,7 @@ python tools/gen_launcher.py
 ```bash
 python auto_verify.py           # 手动跑一次
 python auto_verify.py --dry     # 只看会怎么判，不写回
-python tools/install_task.py    # 装成 Windows 计划任务，每 5 分钟自动跑
+python tools/install_task.py    # 装成 Windows 计划任务，每 5 分钟静默跑（不弹黑框）
 python tools/install_task.py --remove   # 卸载
 ```
 
