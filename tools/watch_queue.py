@@ -11,7 +11,7 @@ import sys
 import time
 from pathlib import Path
 
-BASE = Path(__file__).resolve().parent
+BASE = Path(__file__).resolve().parent.parent   # 上一层就是项目根
 QUEUE = BASE / "verify-queue.jsonl"
 
 
